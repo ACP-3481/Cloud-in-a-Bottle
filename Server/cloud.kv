@@ -1,0 +1,135 @@
+#:kivy 1.10
+
+<MenuScreen>:
+    name: 'menu'
+    FloatLayout:
+        Button:
+            text:'text'
+
+<SetupScreen>:
+    name: 'setup'
+    MDFloatLayout:
+        MDLabel:
+            text: "Select Setup Type"
+            halign: 'center'
+            pos_hint: {'center_x': 0.5,'center_y': 0.9}
+            font_size: self.height * 0.1
+        MDRaisedButton:
+            size_hint: 0.8,0.2
+            pos_hint: {'center_x':0.5,'center_y':0.65}
+            on_press: root.manager.current = 'defaultsetup'
+            MDBoxLayout:
+                orientation: 'vertical'
+                MDLabel:
+                    text: "Default"
+                    halign: 'center'
+                    font_size: self.height * 0.8
+                    color: 0, 0, 0, 1
+                MDLabel:
+                    text:'Sets the internal and external port numbers to 8000'
+                    halign: 'center'
+                    color: 0, 0, 0, 1
+                    font_size: self.height * 0.4
+
+        MDRaisedButton:
+            size_hint: 0.8,0.2
+            pos_hint: {'center_x':0.5,'center_y':0.35}
+            on_press: root.manager.current = 'customsetup'
+            MDBoxLayout: 
+                orientation: 'vertical'
+                MDLabel:
+                    text: "Custom"
+                    halign: 'center'
+                    font_size: self.height * 0.8
+                    color: 0, 0, 0, 1
+                MDLabel:
+                    text: "Input custom internal and external port numbers"
+                    halign: 'center'
+                    font_size: self.height * 0.4
+                    color: 0, 0, 0, 1
+
+<DefaultSetup>:
+    name: 'defaultsetup'
+    MDFloatLayout:
+        MDWidget:
+            pos_hint: {'center_x': 0.0,'center_y': 0.1}
+            center_x: 0.5
+            MDBoxLayout:
+                orientation: 'horizontal'
+                MDRectangleFlatButton:
+                    text: 'Back'
+                    on_press: root.manager.current = 'setup'
+                MDRectangleFlatButton:
+                    text: '22'
+
+
+<CustomSetup>:
+    name: 'customsetup'
+    ScreenManager:
+        id: screen_manager
+        Screen:
+            name: "main_screen"
+            MDFloatLayout:
+                MDLabel:
+                    text: "Port Forwarding Config"
+                    pos_hint: {'center_x': 0.5,'center_y': 0.9}
+                    width: root.width
+                    halign: 'center'
+                    font_size: root.height / 20
+                MDLabel:
+                    text: root.internal_ip
+                    pos_hint: {'center_x': 0.6,'center_y': 0.8}
+                MDLabel:
+                    text: root.external_ip
+                    pos_hint: {'center_x': 0.6,'center_y': 0.7}
+                BoxLayout:
+                    orientation: "vertical"
+                    pos_hint: {"center_x": 0.5, "center_y": 0.5}
+                    size_hint: (0.8, None)
+                    height: dp(120)
+                    
+                    MDLabel:
+                        text: "Internal Port:"
+                        halign: "left"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                    MDTextField:
+                        id: i_port_input
+                        multiline: False
+                        size_hint_y: None
+                        height: dp(48)
+                        halign: "right"
+                    MDLabel:
+                        text: "External Port:"
+                        halign: "left"
+                        theme_text_color: "Custom"
+                        text_color: 1, 1, 1, 1
+                    MDTextField:
+                        id: e_port_input
+                        multiline: False
+                        size_hint_y: None
+                        height: dp(48)
+                        halign: "right"
+                MDRaisedButton:
+                    text: "Try UPnP"
+                    pos_hint: {"center_x": 0.25, "center_y": 0.25}
+                    size_hint: (0.3, None)
+                    height: dp(48)
+                MDRaisedButton:
+                    text: "Manually Configure"
+                    pos_hint: {"center_x": 0.75, "center_y": 0.25}
+                    size_hint: (0.3, None)
+                    height: dp(48)
+                    on_press: root.on_press_manual_config()
+                BoxLayout:
+                    orientation: "horizontal"
+                    size_hint: (0.8, None)
+                    height: dp(48)
+                    pos_hint: {"center_x": 0.5, "center_y": 0.15}
+                    MDRaisedButton:
+                        text: "Back"
+                        size_hint_x: 0.3
+                        on_press: root.manager.current = 'setup'
+                    MDRaisedButton:
+                        text: "Next"
+                        size_hint_x: 0.3
