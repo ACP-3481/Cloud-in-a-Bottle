@@ -62,7 +62,15 @@
                     on_press: root.manager.current = 'setup'
                 MDRectangleFlatButton:
                     text: '22'
+<DialogContent>
+    orientation: "vertical"
+    spacing: "12dp"
+    size_hint_y: None
+    height: self.minimum_height
 
+    MDTextField:
+        id: folder_name_field
+        hint_text: "Enter folder name"
 
 <CustomSetup>:
     name: 'customsetup'

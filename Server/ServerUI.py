@@ -10,8 +10,10 @@ from Server import get_internal_ip, check_port
 import os
 from threading import Thread, Lock
 from kivymd.uix.floatlayout import MDFloatLayout
+from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.filemanager import MDFileManager
 from kivymd.uix.label import MDLabel
+from kivymd.uix.textfield import MDTextField
 import os
 
 
@@ -43,17 +45,20 @@ class DefaultSetup(Screen):
     pass
 
 
+class DialogContent(MDBoxLayout):
+    pass
+
 class FolderSelectionScreen(Screen):
+    dialog=None
     def __init__(self, **kwargs):
         super(FolderSelectionScreen, self).__init__(**kwargs)
-
         self.layout = MDFloatLayout()
 
         self.title = MDLabel(text="Choose a Folder to Store Cloud Storage Files", pos_hint={'center_x': 0.5,'center_y': 0.9}, width=self.width, halign='center', font_style='H4')
         self.layout.add_widget(self.title)
 
         # Create a button to open the file manager
-        self.file_manager_button = MDRaisedButton(text="Select Folder", on_release=self.show_file_manager, pos_hint={'center_x': 0.5,'center_y': 0.8})
+        self.file_manager_button = MDRaisedButton(text="Select Folder", on_release=lambda _: self.show_file_manager(), pos_hint={'center_x': 0.5,'center_y': 0.8})
         self.layout.add_widget(self.file_manager_button)
 
         # Create a label to display the selected folder path
@@ -72,7 +77,45 @@ class FolderSelectionScreen(Screen):
             exit_manager=self.exit_file_manager,
             select_path=self.select_folder_path,
         )
-        self.file_manager.show(os.getcwd().replace('\\', '/'))  # Start the file manager at the root directory
+        self.file_manager.add_widget(
+            MDIconButton(
+                icon="folder-plus",
+                on_press=lambda _: self.show_dialog()
+            )
+                
+        )
+        if len(args) == 0:
+            self.file_manager.show(os.getcwd().replace('\\', '/'))  # Start the file manager at the root directory
+        else:
+            self.file_manager.show(args[0])
+    
+
+    def dialog_ok(self):
+        folder_name = self.dialog.content_cls.ids.folder_name_field.text
+        folder_path = self.file_manager.current_path + "/" + folder_name
+        os.mkdir(folder_path)
+        self.exit_file_manager()
+        self.show_file_manager(folder_path)
+        self.dialog.dismiss()
+        
+
+    def show_dialog(self):
+        if not self.dialog:
+            self.dialog = MDDialog(
+                title="Dialog Title",
+                type="custom",
+                content_cls=DialogContent(),
+                buttons=[
+                    MDFlatButton(
+                        text="CANCEL", on_release= lambda _: self.dialog.dismiss()
+                    ),
+                    MDFlatButton(
+                        text="OK", on_release= lambda _: self.dialog_ok()
+                    ),
+                ],
+            )
+        self.dialog.open()
+    
 
     def select_folder_path(self, path):
         # Update the folder path label with the selected path
