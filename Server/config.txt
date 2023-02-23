@@ -1,3 +1,4 @@
 first_setup=True
 external_port=0
 internal_port=0
+destination_folder=

@@ -57,6 +57,7 @@ def check_port(external_ip, external_port):
         else:
             print(f"Port {external_port} is closed")
         s.close()
+        return True if result == 0 else False
 
     except KeyboardInterrupt:
         print("\n Exiting Program !!!!")

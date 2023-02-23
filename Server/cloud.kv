@@ -35,7 +35,7 @@
         MDRaisedButton:
             size_hint: 0.8,0.2
             pos_hint: {'center_x':0.5,'center_y':0.35}
-            on_press: root.manager.current = 'customsetup'
+            on_press: root.manager.current = 'folder_select'
             MDBoxLayout: 
                 orientation: 'vertical'
                 MDLabel:
@@ -255,25 +255,8 @@
             text: "Once you have added the port forwarding rule, you will need to save your changes. This may require clicking a 'Save' or 'Apply' button, or your changes may be saved automatically."
             halign: "center"
         MDRaisedButton:
-            text: "Next"
-            on_press: root.manager.current = "port_forwarding_step_six"
-
-<PortForwardingStepSixScreen>:
-    name: "port_forwarding_step_six"
-    MDBoxLayout:
-        orientation: "vertical"
-        spacing: "10dp"
-        padding: "20dp"
-        MDLabel:
-            text: "Step 6: Test Your Port Forwarding"
-            font_style: "H5"
-            halign: "center"
-        MDLabel:
-            text: "You can test your port forwarding by attempting to connect to the device or service using the external IP address of your router and the port number you opened. If everything was set up correctly, the connection should be successful."
-            halign: "center"
-        MDRaisedButton:
-            text: "Finish"
-            on_press: root.manager.current = "port_forwarding_completed"
+            text: "Done"
+            on_press: root.manager.current = "port_forwarding_check"
 
 <PortForwardingCheckScreen>:
     name: "port_forwarding_check"
