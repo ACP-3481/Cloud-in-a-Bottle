@@ -1,21 +1,17 @@
-from kivymd.app import MDApp
-from kivy.uix.widget import Widget
-from kivy.properties import StringProperty
-from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager, Screen
-import public_ip as ip
-from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDIconButton
 from kivymd.uix.dialog import MDDialog
-from Server import get_internal_ip, check_port
-import os
-from threading import Thread, Lock
-from kivymd.uix.floatlayout import MDFloatLayout
+from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.filemanager import MDFileManager
+from kivymd.uix.floatlayout import MDFloatLayout
 from kivymd.uix.label import MDLabel
+from kivymd.uix.filemanager import MDFileManager
 from kivymd.uix.textfield import MDTextField
 import os
-
+from kivy.properties import StringProperty
+from Server import get_internal_ip, check_port
+import public_ip as ip
+import socket
+import threading
 
 i_ip = get_internal_ip()
 e_ip = ip.get()
@@ -24,7 +20,6 @@ e_port = None
 destination_folder = ""
 config = {
 }
-
 class SetupScreen(Screen):
     dialog = None
     def on_press_default_button(self):
@@ -154,6 +149,8 @@ class CustomSetup(Screen):
         if not internal_port.isnumeric() or not external_port.isnumeric():
             self.show_alert_dialog("Port values must be numbers")
             return
+        global i_port
+        global e_port
         i_port = int(internal_port)
         e_port = int(external_port)
         self.manager.current = 'port_forwarding'
@@ -193,59 +190,59 @@ class PortForwardingStepFourScreen(Screen):
 
 class PortForwardingStepFiveScreen(Screen):
     pass
-    
+
+def handle_client_connection(client_socket):
+    while True:
+        # Receive data from the client
+        request = client_socket.recv(1024)
+        if not request:
+            break
+        # Do something with the data
+        response = 'You sent: {}'.format(request.decode())
+        # Send a response back to the client
+        client_socket.send(response.encode())
+    # Close the socket connection
+    client_socket.close()
+
+thread_open = False
+def accept_connections():
+    global thread_open
+    thread_open = True
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind((i_ip, i_port))
+
+    # Set a timeout on the socket object before calling accept()
+    server_socket.settimeout(10.0)  # Timeout of 5 seconds
+
+    # Listen for incoming connections
+    server_socket.listen()
+    while True:
+        if not thread_open:
+            break
+        try:
+            # Wait for a client connection with timeout
+            client_socket, client_address = server_socket.accept()
+            print('Accepted connection from {}:{}'.format(client_address[0], client_address[1]))
+            # Start a new thread to handle the connection
+            client_thread = threading.Thread(target=handle_client_connection, args=(client_socket,))
+            client_thread.start()
+        except socket.timeout:
+            print('Socket timed out waiting for client connections.')
+            # Continue waiting for new connections
+            continue
+
+accept_thread = threading.Thread(target=accept_connections)
 class PortForwardingCheckScreen(Screen):
-    port_status = f"{i_ip} {e_ip}"
+    port_status = StringProperty()
+    def on_enter(self, *args):
+        global thread_open
+        global port_status
+        accept_thread.start()
+        port_open = check_port(e_ip, e_port)
+        if not port_open:
+            thread_open = False
+        port_status = f"{i_ip} {e_ip}"
+        return super().on_pre_enter(*args)
 
 class MenuScreen(Screen):
     pass
-
-
-def server_code():
-
-    def receive_file(client):
-        filename, filesize, size_a, size_r = client.recv(4096).decode().strip().split("|")
-
-        with open(f"{destination_folder}{filename}", "wb") as f:
-            for i in range(int(size_a)):
-                bytes_read = client.recv(4096)
-                f.write(bytes_read)
-            bytes_read = client.recv(int(size_r))
-            f.write(bytes_read)
-            print("file recieved")
-
-
-
-
-class CloudApp(MDApp):
-    def build(self):
-        self.theme_cls.theme_style = "Dark"
-        with open(f"{os.getcwd()}\\Server\\config.txt", "r") as f:
-            for line in f:
-                if "=" in line:
-                    config_text = line.strip().split("=")
-                    config[config_text[0]] = config_text[1]
-        print(config)
-        sm = ScreenManager()
-        if config['first_setup'] in ['True', 'true', '1', 't']:
-            sm.add_widget(SetupScreen(name='setup'))
-            sm.add_widget(DefaultSetup(name='defaultsetup'))
-            sm.add_widget(FolderSelectionScreen(name='folder_select'))
-            sm.add_widget(CustomSetup(name='customsetup'))
-            sm.add_widget(PortForwardingScreen())
-            sm.add_widget(PortForwardingInfoScreen())
-            sm.add_widget(PortForwardingStepOneScreen())
-            sm.add_widget(PortForwardingStepTwoScreen())
-            sm.add_widget(PortForwardingStepThreeScreen())
-            sm.add_widget(PortForwardingStepFourScreen())
-            sm.add_widget(PortForwardingStepFiveScreen())
-            sm.add_widget(PortForwardingCheckScreen(name="port_forwarding_check"))
-        sm.add_widget(MenuScreen(name='menu'))
-
-        return sm
-    
-    
-
-
-if __name__ == '__main__':
-    CloudApp().run()

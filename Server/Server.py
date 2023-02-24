@@ -52,11 +52,11 @@ def check_port(external_ip, external_port):
 
         # returns an error indicator
         result = s.connect_ex((external_ip, external_port))
-        if result == 0:
-            print(f"Port {external_port} is open")
-        else:
-            print(f"Port {external_port} is closed")
         s.close()
+        if result == 0:
+            print(f"Port {external_port} on {external_ip} is open")
+        else:
+            print(f"Port {external_port} on {external_ip} is closed")
         return True if result == 0 else False
 
     except KeyboardInterrupt:
