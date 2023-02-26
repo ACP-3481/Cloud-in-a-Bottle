@@ -12,6 +12,9 @@ from Server import get_internal_ip, check_port
 import public_ip as ip
 import socket
 import threading
+from kivy.clock import Clock
+import upnpy
+from typing import Optional
 
 i_ip = get_internal_ip()
 e_ip = ip.get()
@@ -135,6 +138,67 @@ class FolderSelectionScreen(Screen):
         # Go to the next screen in the screen manager
         screen_manager.current = screen_manager.screens[self_index + 1].name
 
+global upnp_status
+upnp_status: str = ''
+def add_port_mapping(internal_port: int, external_port: int, internal_ip: str, lease_duration: Optional[int] = 0) -> threading.Thread:
+    """
+    Add a port mapping using UPnP in a separate thread.
+
+    :param internal_port: Internal port number to map.
+    :param external_port: External port number to map.
+    :param internal_ip: Internal IP address of the client to map.
+    :param lease_duration: Duration of the lease (in seconds), after which the port mapping will expire.
+                           If not provided or set to 0, the port mapping will have a permanent lease.
+    :return: Returns a Thread object that runs the port mapping function.
+    """
+    def add_port_mapping_thread():
+        global upnp_status
+        try:
+            # Initialize the UPnP client
+            client = upnpy.UPnP()
+
+            # Discover UPnP devices on the network
+            devices = client.discover()
+            mapping_added = False 
+            # Loop through each device and add the port mapping
+            for device in devices:
+                # Check if the device supports the WANIPConnection service
+                if 'WANIPConn1' in device.services:
+                    # Get the WANIPConnection service
+                    wan_ip_service = device.services['WANIPConn1']
+
+                    # Add the port mapping using the WANIPConnection service
+                    result = wan_ip_service.AddPortMapping(
+                        NewRemoteHost='', 
+                        NewExternalPort=external_port, 
+                        NewProtocol='TCP', 
+                        NewInternalPort=internal_port, 
+                        NewInternalClient=internal_ip, 
+                        NewEnabled=1, 
+                        NewPortMappingDescription='', 
+                        NewLeaseDuration=lease_duration
+                    )
+
+                    # Check if the port mapping was added successfully
+                    if result['errorCode'] == '0':
+                        print("Port mapping added successfully")
+                        mapping_added = True
+                        upnp_status = 'Open'
+
+            # If no device supports the WANIPConnection service, raise an error
+            if not mapping_added:
+                upnp_status = 'Failed'
+                raise ValueError("No UPnP device found that supports WANIPConnection service")
+
+        except Exception as e:
+            # If there is any other error, raise an error with the details
+            upnp_status = 'Failed'
+            raise ValueError(f"Error: {e}")
+
+    # Create a new thread and start it
+    t = threading.Thread(target=add_port_mapping_thread)
+    t.start()
+
 class CustomSetup(Screen):
     internal_ip = StringProperty()
     external_ip = StringProperty()
@@ -156,7 +220,19 @@ class CustomSetup(Screen):
         self.manager.current = 'port_forwarding'
 
     def on_press_upnp_button(self):
-        self.show_alert_dialog("Upnp not implemented yet")
+        add_port_mapping(i_port, e_port, i_ip)
+        Clock.schedule_once(lambda _: self.check_upnp_status(), 5)
+        self.show_alert_dialog("Trying UPnP. Please wait a few seconds")
+
+    def check_upnp_status(self):
+        global upnp_status
+        print("UPNP",upnp_status)
+        if upnp_status == 'Failed':
+            self.show_alert_dialog("UPnP failed")
+            upnp_status = ''
+        if upnp_status == 'Open':
+            self.show_alert_dialog("UPnP success")
+        
 
     def show_alert_dialog(self, message):
         self.dialog = MDDialog(

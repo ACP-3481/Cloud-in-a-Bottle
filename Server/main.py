@@ -6,9 +6,6 @@ from UIScreens import *
 
 
 
-
-
-
 def server_code():
 
     def receive_file(client):
