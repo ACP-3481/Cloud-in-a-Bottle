@@ -15,6 +15,10 @@ import threading
 from kivy.clock import Clock
 import upnpy
 from typing import Optional
+import configparser
+import hashlib
+import binascii
+import secrets
 
 i_ip = get_internal_ip()
 e_ip = ip.get()
@@ -83,7 +87,7 @@ class FolderSelectionScreen(Screen):
                 
         )
         if len(args) == 0:
-            self.file_manager.show(os.getcwd().replace('\\', '/'))  # Start the file manager at the root directory
+            self.file_manager.show(os.getcwd().replace('\\', '/')) 
         else:
             self.file_manager.show(args[0])
     
@@ -131,12 +135,73 @@ class FolderSelectionScreen(Screen):
     def go_to_next_screen(self, *args):
         # Get a reference to the screen manager
         screen_manager = self.parent
-
-        # Find the index of this screen in the screen manager
-        self_index = screen_manager.screens.index(self)
-
+        config = configparser.ConfigParser()
+        config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
+        config.set('DEFAULT', 'destination_folder', self.file_manager.current_path)
+        with open(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini', 'w') as configfile:
+                config.write(configfile)
         # Go to the next screen in the screen manager
-        screen_manager.current = screen_manager.screens[self_index + 1].name
+        screen_manager.current = 'password_screen'
+
+class PasswordScreen(Screen):
+    password_text = StringProperty('')
+    confirm_password_text = StringProperty('')
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.dialog = None
+
+    def show_error_dialog(self):
+        self.dialog = MDDialog(
+            title="Error",
+            text="Password inputs do not match.",
+            buttons=[
+                MDFlatButton(
+                    text="Close", on_release=self.close_dialog
+                )
+            ],
+        )
+        self.dialog.open()
+
+    def show_success_dialog(self):
+        self.dialog = MDDialog(
+            title="Success",
+            text="Password saved.",
+            buttons=[
+                MDFlatButton(
+                    text="Close", on_release=self.close_dialog_success
+                )
+            ],
+        )
+        self.dialog.open()
+
+    def close_dialog(self, *args):
+        self.dialog.dismiss()
+
+    def close_dialog_success(self, *args):
+        self.dialog.dismiss()
+        self.manager.current = 'customsetup'
+        
+    def save_password(self):
+        password_text = self.ids.password.text
+        confirm_password_text = self.ids.confirm_password.text
+
+        if password_text != confirm_password_text:
+            self.show_error_dialog()
+        else:
+            self.show_success_dialog()
+            config = configparser.ConfigParser()
+            config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
+            salt = secrets.token_hex(16)
+            hash = hashlib.sha256((self.ids.password.text + salt).encode()).hexdigest()
+            config.set('DEFAULT', 'salt', salt)
+            config.set('DEFAULT', 'hash', hash)
+            with open(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini', 'w') as configfile:
+                config.write(configfile)
+
+
+
+
 
 global upnp_status
 upnp_status: str = ''
@@ -217,6 +282,14 @@ class CustomSetup(Screen):
         global e_port
         i_port = int(internal_port)
         e_port = int(external_port)
+
+        config = configparser.ConfigParser()
+        config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
+        config.set('DEFAULT', 'external_port', external_port)
+        config.set('DEFAULT', 'internal_port', internal_port)
+        with open(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini', 'w') as configfile:
+                config.write(configfile)
+        
         self.manager.current = 'port_forwarding'
 
     def on_press_upnp_button(self):

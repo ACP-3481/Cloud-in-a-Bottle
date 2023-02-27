@@ -145,6 +145,29 @@
                     #    text: "Next"
                     #    size_hint_x: 0.3
 
+<PasswordScreen>:
+    name: 'password_screen'
+    BoxLayout:
+        orientation: 'vertical'
+        MDTextField:
+            id: password
+            hint_text: 'Enter Password'
+            password: True
+            size_hint: (0.8, None)
+            height: '48dp'
+            pos_hint: {'center_x': 0.5, 'center_y': 0.6}
+        MDTextField:
+            id: confirm_password
+            hint_text: 'Confirm Password'
+            password: True
+            size_hint: (0.8, None)
+            height: '48dp'
+            pos_hint: {'center_x': 0.5, 'center_y': 0.4}
+        MDRectangleFlatButton:
+            text: 'Save Password'
+            pos_hint: {'center_x': 0.5, 'center_y': 0.2}
+            on_press: root.save_password()
+
 <PortForwardingScreen>:
     name: "port_forwarding"
     MDBoxLayout:

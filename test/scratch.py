@@ -1,9 +1,7 @@
-x = 10
+import os
 
-def modify_global():
-    global x
-    x = 20
+# Get the directory name of the current script
+dir_name = os.path.dirname(os.path.abspath(__file__))
 
-print(x)  # Output: 10
-modify_global()
-print(x)  # Output: 20
+print(dir_name)
+print(os.getcwd())

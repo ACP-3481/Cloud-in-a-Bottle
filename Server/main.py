@@ -3,6 +3,7 @@ from kivy.clock import Clock
 from kivy.uix.screenmanager import ScreenManager, Screen
 import os
 from UIScreens import *
+import configparser
 
 
 
@@ -22,17 +23,16 @@ def server_code():
 class CloudApp(MDApp):
     def build(self):
         self.theme_cls.theme_style = "Dark"
-        with open(f"{os.getcwd()}\\Server\\config.txt", "r") as f:
-            for line in f:
-                if "=" in line:
-                    config_text = line.strip().split("=")
-                    config[config_text[0]] = config_text[1]
-        print(config)
+        config = configparser.ConfigParser()
+        config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
+        if 'first_setup' in config['DEFAULT']:
+            first_setup = config['DEFAULT']['first_setup']
         sm = ScreenManager()
-        if config['first_setup'] in ['True', 'true', '1', 't']:
+        if first_setup == 'True':
             sm.add_widget(SetupScreen(name='setup'))
             sm.add_widget(DefaultSetup(name='defaultsetup'))
             sm.add_widget(FolderSelectionScreen(name='folder_select'))
+            sm.add_widget(PasswordScreen(name='password_screen'))
             sm.add_widget(CustomSetup(name='customsetup'))
             sm.add_widget(PortForwardingScreen())
             sm.add_widget(PortForwardingInfoScreen())
