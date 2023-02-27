@@ -240,7 +240,7 @@ def add_port_mapping(internal_port: int, external_port: int, internal_ip: str, l
                         NewInternalPort=internal_port, 
                         NewInternalClient=internal_ip, 
                         NewEnabled=1, 
-                        NewPortMappingDescription='', 
+                        NewPortMappingDescription='Cloud In A Bottle', 
                         NewLeaseDuration=lease_duration
                     )
 
