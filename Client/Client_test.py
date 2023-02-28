@@ -2,8 +2,10 @@ import socket
 import os
 import sys
 from Crypto.Cipher import AES
-from base64 import b32encode, b32decode
-
+import base64
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+import secrets
 # Event codes to send to server
 # UPD : upload
 # DLD : download
@@ -80,3 +82,34 @@ def decrypt_file(key, nonce, cipher_filename, cipher_file=None):
     filename = cipher.decrypt(cipher_filename)
     if cipher_file == None:
         return filename
+
+if __name__ == '__main__':
+    host = input("Host ip: ")
+    port = int(input("Host Port: "))
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.connect((host, port))
+
+    rsa_key = server.recv(1024)
+    rsa_key = RSA.import_key(rsa_key.decode().strip())
+    rsa_encryptor = PKCS1_OAEP.new(rsa_key)
+
+    session_key = secrets.token_bytes(16)
+    encrypted_key = rsa_encryptor.encrypt(session_key)
+    encrypted_key = base64.b32encode(encrypted_key)
+    key_size = sys.getsizeof(encrypted_key)
+    size_difference = 1024 - key_size
+    encrypted_key = (encrypted_key.decode() + " "*size_difference).encode()
+
+    server.send(encrypted_key)
+    nonce_int = 0
+    nonce = nonce_int.to_bytes(32, 'big')
+    
+    session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def increment_nonce():
+        global nonce_int, nonce, session_cipher
+        nonce_int += 2
+        nonce = nonce_int.to_bytes(32, 'big')
+        session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+
+

@@ -345,6 +345,7 @@ class PortForwardingStepFiveScreen(Screen):
     pass
 
 def handle_client_connection(client_socket):
+    # encryption setup
     key = RSA.generate(2048)
     rsa_decryptor = PKCS1_OAEP.new(key)
     public_key = key.public_key()
@@ -352,16 +353,20 @@ def handle_client_connection(client_socket):
     if sys.getsizeof(export_pub_key) < 1024:
         size_difference = 1024 - sys.getsizeof(export_pub_key)
         export_pub_key = (export_pub_key.decode() + (" " * size_difference)).encode()
+
     # send the public key to the client
     client_socket.send(export_pub_key)
     # Receive the session_key from the client
-    session_key = base64.b32decode(client_socket.recv(1024).decode().strip())
+    session_key = rsa_decryptor.decrypt(base64.b32decode(client_socket.recv(1024).decode().strip().encode()))
+    global nonce_int, nonce, session_cipher
     nonce_int = 1
     nonce = nonce_int.to_bytes(32, 'big')
-    def increment_nonce():
-        nonce_int += 1
-        nonce = nonce_int.to_bytes(32, 'big')
     session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def increment_nonce():
+        global nonce_int, nonce, session_cipher
+        nonce_int += 2
+        nonce = nonce_int.to_bytes(32, 'big')
+        session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
     while True:
         # Receive data from the client
         request = client_socket.recv(1024)
