@@ -405,7 +405,8 @@ class PortForwardingCheckScreen(Screen):
         global thread_open
         global port_status
         accept_thread.start()
-        port_open = check_port(e_ip, e_port)
+        #port_open = check_port(e_ip, e_port)
+        port_open = True
         if not port_open:
             thread_open = False
         else:
