@@ -43,6 +43,7 @@ class CloudApp(MDApp):
             sm.add_widget(PortForwardingStepFiveScreen())
             sm.add_widget(PortForwardingCheckScreen(name="port_forwarding_check"))
         sm.add_widget(MenuScreen(name='menu'))
+        sm.add_widget(ConnectionOpen(name="connection_open"))
 
         return sm
     

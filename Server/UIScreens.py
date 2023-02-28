@@ -18,7 +18,11 @@ from typing import Optional
 import configparser
 import hashlib
 import binascii
+import base64
 import secrets
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_OAEP
+import sys
 
 i_ip = get_internal_ip()
 e_ip = ip.get()
@@ -341,15 +345,29 @@ class PortForwardingStepFiveScreen(Screen):
     pass
 
 def handle_client_connection(client_socket):
+    key = RSA.generate(2048)
+    rsa_decryptor = PKCS1_OAEP.new(key)
+    public_key = key.public_key()
+    export_pub_key = public_key.export_key()
+    if sys.getsizeof(export_pub_key) < 1024:
+        size_difference = 1024 - sys.getsizeof(export_pub_key)
+        export_pub_key = (export_pub_key.decode() + (" " * size_difference)).encode()
+    # send the public key to the client
+    client_socket.send(export_pub_key)
+    # Receive the session_key from the client
+    session_key = base64.b32decode(client_socket.recv(1024).decode().strip())
+    nonce_int = 1
+    nonce = nonce_int.to_bytes(32, 'big')
+    def increment_nonce():
+        nonce_int += 1
+        nonce = nonce_int.to_bytes(32, 'big')
+    session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
     while True:
         # Receive data from the client
         request = client_socket.recv(1024)
         if not request:
             break
-        # Do something with the data
-        response = 'You sent: {}'.format(request.decode())
-        # Send a response back to the client
-        client_socket.send(response.encode())
+        # process request
     # Close the socket connection
     client_socket.close()
 
@@ -390,8 +408,13 @@ class PortForwardingCheckScreen(Screen):
         port_open = check_port(e_ip, e_port)
         if not port_open:
             thread_open = False
+        else:
+            self.manager.current = 'connection_open'
         port_status = f"{i_ip} {e_ip}"
         return super().on_pre_enter(*args)
+
+class ConnectionOpen(Screen):
+    pass
 
 class MenuScreen(Screen):
     pass
