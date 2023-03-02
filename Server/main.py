@@ -48,7 +48,7 @@ class CloudApp(MDApp):
 
         return sm
     
-    def on_stop():
+    def on_stop(self):
         sys.exit()
 
     

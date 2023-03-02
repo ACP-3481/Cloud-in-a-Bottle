@@ -304,6 +304,10 @@ class CustomSetup(Screen):
     def check_upnp_status(self):
         global upnp_status
         print("UPNP",upnp_status)
+        try:
+            self.dialog.dismiss()
+        except:
+            pass
         if upnp_status == 'Failed':
             self.show_alert_dialog("UPnP failed")
             upnp_status = ''
