@@ -359,20 +359,27 @@ def handle_client_connection(client_socket):
     # Receive the session_key from the client
     session_key = rsa_decryptor.decrypt(base64.b32decode(client_socket.recv(1024).decode().strip().encode()))
     global nonce_int, nonce, session_cipher
-    nonce_int = 1
+    nonce_int = 0
     nonce = nonce_int.to_bytes(32, 'big')
     session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
     def increment_nonce():
         global nonce_int, nonce, session_cipher
-        nonce_int += 2
+        nonce_int += 1
         nonce = nonce_int.to_bytes(32, 'big')
         session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
-    while True:
-        # Receive data from the client
-        request = client_socket.recv(1024)
-        if not request:
-            break
-        # process request
+    def decrypt_with_padding(data: bytes, session_cipher):
+        return session_cipher.decrypt(base64.b32decode(data.decode().strip().encode()))
+
+    
+    password = decrypt_with_padding(client_socket.recv(1024), session_cipher).decode()
+    increment_nonce()
+    config = configparser.ConfigParser()
+    config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
+    salt = config['DEFAULT']['salt']
+    hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    if hash != config['DEFAULT']['hash']:
+        client_socket.close()
+        raise(ValueError("Incorrect Password"))
     # Close the socket connection
     client_socket.close()
 

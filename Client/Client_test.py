@@ -108,8 +108,23 @@ if __name__ == '__main__':
     session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
     def increment_nonce():
         global nonce_int, nonce, session_cipher
-        nonce_int += 2
+        nonce_int += 1
         nonce = nonce_int.to_bytes(32, 'big')
         session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def encrypt_with_padding(data: bytes, session_cipher):
+        #if the bytesize of data is 615 or less it will fit within 1024 bytes
 
+        cipher_text = session_cipher.encrypt(data)
+        cipher_text_b32 = base64.b32encode(cipher_text)
+        size_difference = 1024 - (sys.getsizeof(cipher_text_b32) % 1024)
+        cipher_padded = (cipher_text_b32.decode() + " "*size_difference).encode()
+        return cipher_padded
+    
+    password = str(input("Password: "))
+    server.send(encrypt_with_padding(password.encode(), session_cipher))
+    increment_nonce()
+
+    
+
+    
 

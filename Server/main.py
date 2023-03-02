@@ -4,6 +4,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 import os
 from UIScreens import *
 import configparser
+import sys
 
 
 
@@ -47,6 +48,9 @@ class CloudApp(MDApp):
 
         return sm
     
+    def on_stop():
+        sys.exit()
+
     
 
 
