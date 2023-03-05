@@ -1,3 +1,4 @@
+import json
 import socket
 import os
 import sys
@@ -6,17 +7,15 @@ import base64
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 import secrets
+import tkinter as tk
+from tkinter import filedialog
+import re
+import hashlib
 # Event codes to send to server
 # UPD : upload
 # DLD : download
 # FIN : upload or download finished
-# LGN : Login
-# USR : submit user account name
-# PWD : submit user password
-# KEY : submit pre-master secret
 # END : end connection to server
-# ECR : encrypt file
-# DCR : decrypt file
 
 
 def upload_file(server: socket.socket, filename: str):
@@ -109,6 +108,13 @@ if __name__ == '__main__':
     def increment_nonce():
         global nonce_int, nonce, session_cipher
         nonce_int += 1
+        print("nonce: ", nonce_int)
+        nonce = nonce_int.to_bytes(32, 'big')
+        session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def decrement_nonce():
+        global nonce_int, nonce, session_cipher
+        nonce_int -= 1
+        print("nonce: ", nonce_int)
         nonce = nonce_int.to_bytes(32, 'big')
         session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
     def encrypt_with_padding(data: bytes, session_cipher):
@@ -120,9 +126,143 @@ if __name__ == '__main__':
         cipher_padded = (cipher_text_b32.decode() + " "*size_difference).encode()
         return cipher_padded
     
+    def decrypt_with_padding(data: bytes, session_cipher):
+        return session_cipher.decrypt(base64.b32decode(data.decode().strip().encode()))
+
+    
     password = str(input("Password: "))
     server.send(encrypt_with_padding(password.encode(), session_cipher))
     increment_nonce()
+
+    my_password = ""
+    print("""Input a password to encrypt files with.
+        It must be at least 12 characters long.
+        It must contain a lowercase, uppercase, number, and special character.
+        """)
+    while True:
+        my_password = str(input("File encryption key: "))
+        if len(my_password) < 12:
+            print("Password must be at least 12 characters long")
+            continue
+        elif not re.search("[a-z]", my_password):
+            print("Password must contain a lowercase letter")
+            continue
+        elif not re.search("[A-Z]", my_password):
+            print("Password must contain an uppercase letter")
+            continue
+        elif not re.search("[0-9]", my_password):
+            print("Password must contain a number")
+            continue
+        elif not re.search("[ !\"#$%&'()*+,-./:;\\<=>?@[\]^_`{|}~]" , my_password):
+            print("Password must contain a special character")
+            continue
+        break
+    print("Select a folder to save downloads to.")
+    root = tk.Tk()
+    root.withdraw()
+    downloads_folder = filedialog.askdirectory(title='Select Downloads Folder')
+    print(f"Downloads will be saved to {downloads_folder}")
+    my_password = hashlib.sha256(my_password.encode()).digest()
+    my_cipher = AES.new(my_password, AES.MODE_EAX)
+    def renew_cipher(nonce=None):
+        global my_cipher
+        if nonce is not None:
+            my_cipher = AES.new(my_password, AES.MODE_EAX, nonce)
+            return
+        my_cipher = AES.new(my_password, AES.MODE_EAX)
+
+    first_run = True
+    while True:
+        if first_run:
+            request = 'upd'
+            first_run = False
+        else:
+            print("Request input: upl, dnl, upd, end")
+            request = str(input())
+        while request not in ['upl', 'dnl', 'upd', 'end']:
+            print("Request not match 'upl', 'dnl', 'upd', 'end'")
+            request = str(input())
+        match(request):
+            case "upl":
+                server.send(encrypt_with_padding(b'Upload', session_cipher))
+                increment_nonce()
+                file_path = filedialog.askopenfilename()
+                filename = file_path[(file_path.rindex("/") + 1):]
+                with open(file_path, 'rb') as file:
+                    data = file.read()
+                increment_nonce()
+                increment_nonce()
+                data_nonce = base64.b32encode(my_cipher.nonce)
+                cipher_data = session_cipher.encrypt(my_cipher.encrypt(data))
+                renew_cipher()
+                # return to nonce 1
+                decrement_nonce()
+                decrement_nonce()
+                data_size = sys.getsizeof(cipher_data)
+                filename_nonce = base64.b32encode(my_cipher.nonce)
+                cipher_filename = base64.b32encode(my_cipher.encrypt(filename.encode()))
+                renew_cipher()
+
+                leading_message = encrypt_with_padding(cipher_filename+b'|'+filename_nonce+b'|'+data_nonce+b'|'+str(data_size).encode(), session_cipher)
+                server.send(leading_message)
+                # nonce 3 is already used up so increment twice
+                increment_nonce()
+                increment_nonce()
+
+                size_i = data_size // 1024
+                size_r = data_size % 1024
+                # this used nonce 3
+                server.send(cipher_data)
+                # the weird use of nonce increment and decrement is so the server can use nonces sequentially
+                print("upload end", nonce_int)
+                
+            case "dnl":
+                file_to_download = input("Choose file: ")
+                while file_to_download not in filenames:
+                    print(f'File "{file_to_download}" does not exist')
+                    print(f'Choose file from:\n{filenames}')
+                    file_to_download = input("Choose file: ")
+                file_to_download_b32 = filename_b32_list[filenames.index(file_to_download)].encode()
+
+                server.send(encrypt_with_padding(b'Download', session_cipher))
+                increment_nonce()
+                server.send(encrypt_with_padding(file_to_download_b32, session_cipher))
+                increment_nonce()
+                print("im here", nonce_int)
+                data_size, data_nonce_b32 = decrypt_with_padding(server.recv(1024), session_cipher).decode().split("|")
+                data_size = int(data_size)
+                data_nonce = base64.b32decode(data_nonce_b32)
+                increment_nonce()
+                data_ciphered = session_cipher.decrypt(server.recv(data_size))
+                increment_nonce()
+                renew_cipher(data_nonce)
+                file_data = my_cipher.decrypt(data_ciphered)
+                renew_cipher()
+                with open(f'{downloads_folder}/{file_to_download}', 'wb') as f:
+                    f.write(file_data)
+            case "upd":
+                server.send(encrypt_with_padding(b'Update', session_cipher))
+                increment_nonce()
+                update_size = int(decrypt_with_padding(server.recv(1024), session_cipher).decode())
+                increment_nonce()
+                update_data = decrypt_with_padding(server.recv(update_size), session_cipher).decode()
+                increment_nonce()
+                update_dict = json.loads(update_data)
+                
+                filenames = []
+                filename_b32_list = []
+                for item in update_dict:
+                    filename_b32_list.append(item)
+                    filename_bytes = base64.b32decode(item)
+                    filename_nonce_bytes = base64.b32decode(update_dict[item])
+                    renew_cipher(filename_nonce_bytes)
+                    filenames.append(my_cipher.decrypt(filename_bytes).decode())
+                print(f"Files Availabe:\n{filenames}")
+                renew_cipher()
+                    
+
+            case "end":
+                pass
 
     
 

@@ -1,3 +1,4 @@
+import json
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
@@ -23,6 +24,7 @@ import secrets
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES, PKCS1_OAEP
 import sys
+import gc
 
 i_ip = get_internal_ip()
 e_ip = ip.get()
@@ -369,22 +371,119 @@ def handle_client_connection(client_socket):
     def increment_nonce():
         global nonce_int, nonce, session_cipher
         nonce_int += 1
+        print("nonce: ", nonce_int)
         nonce = nonce_int.to_bytes(32, 'big')
         session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def decrement_nonce():
+        global nonce_int, nonce, session_cipher
+        nonce_int -= 1
+        print("nonce: ", nonce_int)
+        nonce = nonce_int.to_bytes(32, 'big')
+        session_cipher = AES.new(session_key, AES.MODE_EAX, nonce)
+    def encrypt_with_padding(data: bytes, session_cipher):
+        #if the bytesize of data is 615 or less it will fit within 1024 bytes
+
+        cipher_text = session_cipher.encrypt(data)
+        cipher_text_b32 = base64.b32encode(cipher_text)
+        size_difference = 1024 - (sys.getsizeof(cipher_text_b32) % 1024)
+        cipher_padded = (cipher_text_b32.decode() + " "*size_difference).encode()
+        return cipher_padded
+    
     def decrypt_with_padding(data: bytes, session_cipher):
         return session_cipher.decrypt(base64.b32decode(data.decode().strip().encode()))
-
     
     password = decrypt_with_padding(client_socket.recv(1024), session_cipher).decode()
     increment_nonce()
+    # check if the password is correct
     config = configparser.ConfigParser()
     config.read(os.path.dirname(os.path.abspath(__file__)) +'\\config.ini')
     salt = config['DEFAULT']['salt']
     hash = hashlib.sha256((password + salt).encode()).hexdigest()
+    # if password is not correct, close the connection
     if hash != config['DEFAULT']['hash']:
         client_socket.close()
         raise(ValueError("Incorrect Password"))
-    # Close the socket connection
+    destination_folder = config['DEFAULT']['destination_folder']
+    while True:
+        # recieve event
+        print("helloooooo", nonce_int)
+        event = decrypt_with_padding(client_socket.recv(1024), session_cipher).decode()
+        increment_nonce()
+        match(event):
+            case "Upload":
+                info = decrypt_with_padding(client_socket.recv(1024),session_cipher).decode()
+                increment_nonce()
+                filename, name_nonce, data_nonce, size = info.split("|")
+                size = int(size)
+                size_i = size // 1024
+                size_r = size % 1024
+                
+                with open(f'{destination_folder}/{filename}', 'wb') as f:
+                    for i in range(size_i):
+                        bytes_read = client_socket.recv(1024) 
+                        f.write(bytes_read)
+                    bytes_read = client_socket.recv(size_r)
+                    f.write(bytes_read)
+                with open(f'{destination_folder}/{filename}', 'r+b') as f:
+                    session_decrypt_data = session_cipher.decrypt(f.read())
+                    increment_nonce()
+                    f.seek(0)
+                    f.write(session_decrypt_data)
+                with open(f'{destination_folder}/{filename}.nonce', 'a') as f:
+                    f.write(name_nonce + "\n" + data_nonce)
+                print("upload end", nonce_int)
+
+            case "Download":
+                file_to_download = decrypt_with_padding(client_socket.recv(1024), session_cipher).decode()
+                increment_nonce()
+                print('im here', nonce_int)
+                file_path = f'{destination_folder}/{file_to_download}'
+                with open(file_path, 'rb') as f:
+                    data = f.read()
+                increment_nonce()
+                data_ciphered = session_cipher.encrypt(data)
+                decrement_nonce()
+                with open(f'{file_path}.nonce', 'r') as f:
+                    data = f.read()
+                    data_nonce_b32 = data[data.index("\n")+1:].strip().encode()
+                data_size = str(sys.getsizeof(data_ciphered)).encode()
+                leading_message = data_size + b'|' + data_nonce_b32
+                client_socket.send(encrypt_with_padding(leading_message, session_cipher))
+                increment_nonce()
+                increment_nonce()
+                client_socket.send(data_ciphered)
+
+
+            case "Update":
+                file_list = os.listdir(destination_folder)
+                not_nonce_list = []
+                nonce_list = []
+                for item in file_list:
+                    if '.nonce' in item:
+                        nonce_list.append(item)
+                    else:
+                        not_nonce_list.append(item)
+                name_nonce_pairs = {}
+                for i in range(len(not_nonce_list)):
+                    filename_b32 = not_nonce_list[i]
+                    name_nonce_b32 = ""
+                    with open(f"{destination_folder}/{nonce_list[i]}",'r') as f:
+                        name_nonce_b32 = f.readline().strip()
+                    name_nonce_pairs[filename_b32] = name_nonce_b32
+                increment_nonce()
+                update = encrypt_with_padding(json.dumps(name_nonce_pairs).encode(), session_cipher)
+                decrement_nonce()
+                update_size = str(sys.getsizeof(update)).encode()
+                client_socket.send(encrypt_with_padding(update_size, session_cipher))
+                client_socket.send(update)
+                increment_nonce()
+                increment_nonce()
+
+            case "End":
+                client_socket.close()
+        
+        
+    # close the connection
     client_socket.close()
 
 thread_open = False
